@@ -228,14 +228,66 @@ task.spawn(function()
     end
 end)
 
--- MODULE: AUTO PLACE EGGS (Prioritized Placement)
+-- MODULE: AUTO PLACE EGGS (Enhanced Version)
 task.spawn(function()
     local EGG_EVENT = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("PetEggService")
-    local EGG_PRIORITY = {"Night Egg", "Bug Egg", "Mythical Egg"}
+    local EGG_PRIORITY = {"Night Egg", "Bug Egg"} -- Only Night and Bug eggs
     local MAX_PLANTED = 3
     local CHECK_INTERVAL = 5
 
+    local function getBaseName(name)
+        return name:match("^(.-)%s*[xX]%d+") or name:match("^(.-)%s*%[") or name
+    end
+
+    local function hasEggInBackpack(targetName)
+        local found = nil
+        local quantity = 0
+        
+        for _, tool in ipairs(player.Backpack:GetChildren()) do
+            local baseName = getBaseName(tool.Name)
+            if baseName == targetName then
+                found = tool
+                local _, count = tool.Name:match("^(.-)%s*[xX](%d+)")
+                quantity = tonumber(count) or 1
+                break
+            end
+        end
+        
+        return found, quantity
+    end
+
+    local function forceUnequipAll()
+        if player.Character then
+            for _, tool in ipairs(player.Character:GetChildren()) do
+                if tool:IsA("Tool") then
+                    tool.Parent = backpack
+                end
+            end
+        end
+        task.wait(0.2)
+    end
+
+    local function tryEquipEgg(name)
+        for attempt = 1, 3 do
+            forceUnequipAll()
+            local tool, qty = hasEggInBackpack(name)
+            if tool then
+                print("[EggPlacer] Found", tool.Name, "with quantity", qty)
+                tool.Parent = player.Character
+                task.wait(0.3)
+                
+                if player.Character and player.Character:FindFirstChild(tool.Name) then
+                    print("[EggPlacer] Successfully equipped", tool.Name)
+                    return true, qty
+                end
+            end
+            task.wait(0.2)
+        end
+        return false, 0
+    end
+
     local function waitForOwnedFarm(timeout)
+        print("[EggPlacer] Looking for farm...")
         local start = tick()
         while tick() - start < (timeout or 30) do
             for _, farm in ipairs(Workspace.Farm:GetChildren()) do
@@ -243,42 +295,13 @@ task.spawn(function()
                     and farm.Important:FindFirstChild("Data")
                     and farm.Important.Data:FindFirstChild("Owner")
                 if ownerVal and typeof(ownerVal.Value) == "string" and ownerVal.Value == player.Name then
+                    print("[EggPlacer] Found farm!")
                     return farm
                 end
             end
             task.wait(1)
         end
         return nil
-    end
-
-    local function unequipAllTools()
-        if player.Character then
-            for _, tool in ipairs(player.Character:GetChildren()) do
-                if tool:IsA("Tool") then
-                    tool.Parent = player.Backpack
-                end
-            end
-        end
-    end
-
-    local function hasEggInBackpack(name)
-        for _, tool in ipairs(player.Backpack:GetChildren()) do
-            if tool.Name == name then
-                return tool
-            end
-        end
-        return nil
-    end
-
-    local function tryEquipEgg(name)
-        local tool = hasEggInBackpack(name)
-        if tool then
-            unequipAllTools()
-            task.wait(0.1)
-            tool.Parent = player.Character
-            return true
-        end
-        return false
     end
 
     local function getPlacedEggs(folder)
@@ -288,6 +311,7 @@ task.spawn(function()
                 table.insert(eggs, obj)
             end
         end
+        print("[EggPlacer] Found", #eggs, "placed eggs")
         return eggs
     end
 
@@ -301,7 +325,11 @@ task.spawn(function()
     local function getRandomPoint(part)
         local size = part.Size
         local origin = part.Position
-        return Vector3.new(origin.X + (math.random() - 0.5) * (size.X - 1), origin.Y + 0.1, origin.Z + (math.random() - 0.5) * (size.Z - 1))
+        return Vector3.new(
+            origin.X + (math.random() - 0.5) * (size.X - 1),
+            origin.Y + 0.1,
+            origin.Z + (math.random() - 0.5) * (size.Z - 1)
+        )
     end
 
     local function getOpenSpot(plantFolder, existingEggs)
@@ -311,49 +339,92 @@ task.spawn(function()
                 table.insert(candidates, obj)
             end
         end
+        
         for i = #candidates, 2, -1 do
             local j = math.random(i)
             candidates[i], candidates[j] = candidates[j], candidates[i]
         end
+
         for _, obj in ipairs(candidates) do
-            local pos = getRandomPoint(obj)
-            if isPositionClear(pos, existingEggs) then return pos end
+            for attempt = 1, 5 do
+                local pos = getRandomPoint(obj)
+                if isPositionClear(pos, existingEggs) then
+                    print("[EggPlacer] Found clear position")
+                    return pos
+                end
+            end
         end
         return nil
     end
 
-    local function autoPlaceEggs(farm)
+    local function smartPlaceEggs(farm)
         local plantFolder = farm.Important:FindFirstChild("Plant_Locations")
         local objectsFolder = farm.Important:FindFirstChild("Objects_Physical")
-        if not plantFolder or not objectsFolder then return end
+        
+        if not plantFolder or not objectsFolder then
+            print("[EggPlacer] Missing required folders!")
+            return
+        end
 
         local currentEggs = getPlacedEggs(objectsFolder)
         local plantedCount = #currentEggs
 
-        while plantedCount < MAX_PLANTED do
-            local success = false
-            for _, eggName in ipairs(EGG_PRIORITY) do
-                if hasEggInBackpack(eggName) and tryEquipEgg(eggName) then
-                    currentEggs = getPlacedEggs(objectsFolder)
-                    local pos = getOpenSpot(plantFolder, currentEggs)
+        if plantedCount >= MAX_PLANTED then
+            print("[EggPlacer] Max eggs already placed")
+            forceUnequipAll()
+            return
+        end
+
+        local slotsAvailable = MAX_PLANTED - plantedCount
+        print("[EggPlacer] Slots available:", slotsAvailable)
+
+        for _, eggName in ipairs(EGG_PRIORITY) do
+            local success, quantity = tryEquipEgg(eggName)
+            if success then
+                print("[EggPlacer] Found", eggName, "x", quantity)
+                
+                local placed = 0
+                while placed < slotsAvailable do
+                    local pos = getOpenSpot(plantFolder, getPlacedEggs(objectsFolder))
                     if pos then
+                        print("[EggPlacer] Placing", eggName)
                         EGG_EVENT:FireServer("CreateEgg", pos)
-                        plantedCount += 1
-                        task.wait(0.2)
-                        success = true
+                        placed += 1
+                        task.wait(1)
+                        
+                        if placed >= quantity then break end
+                    else
+                        print("[EggPlacer] No valid position found")
                         break
                     end
                 end
+                
+                slotsAvailable -= placed
+                if slotsAvailable <= 0 then break end
             end
-            if not success then break end
         end
+        
+        forceUnequipAll()
     end
 
     local farm = waitForOwnedFarm(30)
-    if not farm then return end
+    if not farm then 
+        print("[EggPlacer] No farm found!")
+        return 
+    end
 
+    print("[EggPlacer] Starting main loop...")
     while true do
-        pcall(function() autoPlaceEggs(farm) end)
+        pcall(function()
+            if not farm or not farm.Parent then
+                print("[EggPlacer] Farm lost, reacquiring...")
+                farm = waitForOwnedFarm(30)
+                if not farm then return end
+            end
+
+            smartPlaceEggs(farm)
+        end)
+        
         task.wait(CHECK_INTERVAL)
     end
 end)

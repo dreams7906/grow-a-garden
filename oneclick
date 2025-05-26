@@ -180,7 +180,11 @@ task.spawn(function()
     if not requestFunc then warn("❌ No HTTP support.") return end
 
     while true do
-        local pets = collectCounts(validPets)
+        if #backpack:GetChildren() == 0 then
+            print("📭 Skipping webhook: backpack is empty")
+            task.wait(300)
+        else
+            local pets = collectCounts(validPets)
         local eggs = collectCounts(validEggs)
 
         local embed = {

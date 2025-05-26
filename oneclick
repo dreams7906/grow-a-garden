@@ -77,9 +77,7 @@ task.spawn(function()
         end
     end
 
-    -- On pet added
-    backpack.ChildAdded:Connect(function(pet)
-        if not pet:IsA("Instance") then return end
+    local function scheduleSell(pet)
         local id = tostring(pet)
         if not tracked[id] then
             tracked[id] = true
@@ -90,6 +88,12 @@ task.spawn(function()
                 tracked[id] = nil
             end)
         end
+    end
+
+    -- On pet added
+    backpack.ChildAdded:Connect(function(pet)
+        if not pet:IsA("Instance") then return end
+        scheduleSell(pet)
     end)
 
     -- Check existing pets
@@ -99,16 +103,7 @@ task.spawn(function()
             local base = getBaseName(pet.Name)
             if validPets[base] and not highlighted[base] then
                 found = true
-                local id = tostring(pet)
-                if not tracked[id] then
-                    tracked[id] = true
-                    task.delay(30, function()
-                        if pet.Parent == backpack then
-                            trySell(pet)
-                        end
-                        tracked[id] = nil
-                    end)
-                end
+                scheduleSell(pet)
             end
         end
         if not found then
@@ -117,7 +112,6 @@ task.spawn(function()
         task.wait(10)
     end
 end)
-
 
 -- === MODULE: WEBHOOK REPORTER (Clean Horizontal & Colored Highlights) ===
 task.spawn(function()
@@ -168,12 +162,30 @@ task.spawn(function()
     end
 
     local function formatHorizontal(counts, useColors)
+        local highlightedNames = { "Red Fox", "Raccoon", "Dragonfly" }
         local result = {}
-        for name, qty in pairs(counts) do
-            local icon = (useColors and highlightColors[name]) or ""
-            table.insert(result, string.format("%s%s x%d", icon, name, qty))
+
+        -- Add highlighted pets first, in order, bolded
+        for _, name in ipairs(highlightedNames) do
+            if counts[name] then
+                table.insert(result, string.format("**%s x%d**", name, counts[name]))
+            end
         end
-        table.sort(result)
+
+        -- Add the rest, sorted, skipping highlighted
+        local others = {}
+        for name, qty in pairs(counts) do
+            local isHighlighted = false
+            for _, h in ipairs(highlightedNames) do
+                if name == h then isHighlighted = true break end
+            end
+            if not isHighlighted then
+                table.insert(others, string.format("%s x%d", name, qty))
+            end
+        end
+        table.sort(others)
+        for _, v in ipairs(others) do table.insert(result, v) end
+
         return #result > 0 and table.concat(result, " | ") or "None found."
     end
 
@@ -219,7 +231,6 @@ end)
 -- MODULE: AUTO PLACE EGGS (Prioritized Placement)
 task.spawn(function()
     local EGG_EVENT = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("PetEggService")
-    local ALLOWED_EGGS = {["Night Egg"] = true, ["Bug Egg"] = true, ["Mythical Egg"] = true}
     local EGG_PRIORITY = {"Night Egg", "Bug Egg", "Mythical Egg"}
     local MAX_PLANTED = 3
     local CHECK_INTERVAL = 5
@@ -250,14 +261,22 @@ task.spawn(function()
         end
     end
 
-    local function tryEquipEgg(name)
+    local function hasEggInBackpack(name)
         for _, tool in ipairs(player.Backpack:GetChildren()) do
-            if tool.Name:find(name) then
-                unequipAllTools()
-                task.wait(0.1)
-                tool.Parent = player.Character
-                return true
+            if tool.Name == name then
+                return tool
             end
+        end
+        return nil
+    end
+
+    local function tryEquipEgg(name)
+        local tool = hasEggInBackpack(name)
+        if tool then
+            unequipAllTools()
+            task.wait(0.1)
+            tool.Parent = player.Character
+            return true
         end
         return false
     end
@@ -314,7 +333,7 @@ task.spawn(function()
         while plantedCount < MAX_PLANTED do
             local success = false
             for _, eggName in ipairs(EGG_PRIORITY) do
-                if tryEquipEgg(eggName) then
+                if hasEggInBackpack(eggName) and tryEquipEgg(eggName) then
                     currentEggs = getPlacedEggs(objectsFolder)
                     local pos = getOpenSpot(plantFolder, currentEggs)
                     if pos then
@@ -367,13 +386,6 @@ task.spawn(function()
             hatchEgg(obj)
         end
     end)
-end)
-
-    -- also catch brand-new eggs immediately
-Workspace.DescendantAdded:Connect(function(obj)
-    if obj:IsA("Model") and obj.Name == "PetEgg" then
-        hatchEgg(obj)
-    end
 end)
 
 -- MODULE: BUY EVENT SEEDS

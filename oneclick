@@ -118,6 +118,7 @@ task.spawn(function()
     end
 end)
 
+
 -- === MODULE: WEBHOOK REPORTER (Clean Horizontal & Colored Highlights) ===
 task.spawn(function()
     local validPets = {
@@ -208,7 +209,7 @@ task.spawn(function()
                     })
                 end)
             else
-                warn("❌ No supported request function found.")
+                warn("❌ requestFunc is nil. Your executor may not support HTTP requests.")
             end
         end
         task.wait(300)

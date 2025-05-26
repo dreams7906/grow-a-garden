@@ -1,0 +1,393 @@
+-- 🧠 Ultimate Multi-Function Roblox Script by Jake 🥷
+task.wait(5)
+
+-- === INIT SERVICES ===
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local VirtualUser = game:GetService("VirtualUser")
+local player = Players.LocalPlayer
+local backpack = player:WaitForChild("Backpack")
+
+-- === UNIVERSAL SETTINGS ===
+local WEBHOOK_URL = "https://ptb.discord.com/api/webhooks/1373838036357615656/5wgXANOfo6sXrUYoSXOP11tUaZnEyk9X2iPPKTKhm5WfYaQ6tulDFt9BcqxijwRALEEo"
+
+-- === MODULE: SKIPPER MENU ===
+task.spawn(function()
+    repeat task.wait() until game:IsLoaded()
+    task.wait(5)
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+end)
+
+-- === MODULE: ANTI-AFK ===
+task.spawn(function()
+    player.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Anti AFK loaded!",
+        Text = "Made by Tuuguu936",
+        Button1 = "Okay",
+        Duration = 5
+    })
+end)
+
+-- === MODULE: AUTO SELL PETS (With 30s Delay and Highlight Protection) ===
+task.spawn(function()
+    local highlighted = {
+        ["Red Fox"] = true,
+        ["Raccoon"] = true,
+        ["Dragonfly"] = true
+    }
+
+    local validPets = {
+        ["Black Bunny"] = true, ["Blood Hedgehog"] = true, ["Blood Kiwi"] = true,
+        ["Blood Owl"] = true, ["Brown Mouse"] = true, ["Bunny"] = true,
+        ["Cat"] = true, ["Caterpillar"] = true, ["Chicken"] = true,
+        ["Chicken Zombie"] = true, ["Cow"] = true, ["Deer"] = true,
+        ["Dog"] = true, ["Dragonfly"] = true, ["Echo Frog"] = true,
+        ["Frog"] = true, ["Giant Ant"] = true, ["Golden Lab"] = true,
+        ["Grey Mouse"] = true, ["Hedgehog"] = true, ["Kiwi"] = true,
+        ["Mole"] = true, ["Monkey"] = true, ["Night Owl"] = true,
+        ["Orange Tabby"] = true, ["Owl"] = true, ["Panda"] = true,
+        ["Pig"] = true, ["Polar Bear"] = true, ["Praying Mantis"] = true,
+        ["Raccoon"] = true, ["Red Fox"] = true, ["Red Giant Ant"] = true,
+        ["Rooster"] = true, ["Sea Otter"] = true, ["Silver Monkey"] = true,
+        ["Snail"] = true, ["Spotted Deer"] = true, ["Squirrel"] = true,
+        ["Turtle"] = true
+    }
+
+    local function getBaseName(name)
+        return name:match("^(.-)%s*%[") or name
+    end
+
+    local tracked = {}
+
+    local function trySell(pet)
+        local base = getBaseName(pet.Name)
+        if validPets[base] and not highlighted[base] then
+            pcall(function()
+                ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("SellPet_RE"):FireServer(pet)
+                print("✅ Sold:", pet.Name)
+            end)
+        end
+    end
+
+    -- On pet added
+    backpack.ChildAdded:Connect(function(pet)
+        if not pet:IsA("Instance") then return end
+        local id = tostring(pet)
+        if not tracked[id] then
+            tracked[id] = true
+            task.delay(30, function()
+                if pet.Parent == backpack then
+                    trySell(pet)
+                end
+                tracked[id] = nil
+            end)
+        end
+    end)
+
+    -- Check existing pets
+    while true do
+        local found = false
+        for _, pet in ipairs(backpack:GetChildren()) do
+            local base = getBaseName(pet.Name)
+            if validPets[base] and not highlighted[base] then
+                found = true
+                local id = tostring(pet)
+                if not tracked[id] then
+                    tracked[id] = true
+                    task.delay(30, function()
+                        if pet.Parent == backpack then
+                            trySell(pet)
+                        end
+                        tracked[id] = nil
+                    end)
+                end
+            end
+        end
+        if not found then
+            print("📭 No pets to sell.")
+        end
+        task.wait(10)
+    end
+end)
+
+-- === MODULE: WEBHOOK REPORTER (Clean Horizontal & Colored Highlights) ===
+task.spawn(function()
+    local validPets = {
+        ["Black Bunny"] = true, ["Blood Hedgehog"] = true, ["Blood Kiwi"] = true,
+        ["Blood Owl"] = true, ["Brown Mouse"] = true, ["Bunny"] = true,
+        ["Cat"] = true, ["Caterpillar"] = true, ["Chicken"] = true,
+        ["Chicken Zombie"] = true, ["Cow"] = true, ["Deer"] = true,
+        ["Dog"] = true, ["Dragonfly"] = true, ["Echo Frog"] = true,
+        ["Frog"] = true, ["Giant Ant"] = true, ["Golden Lab"] = true,
+        ["Grey Mouse"] = true, ["Hedgehog"] = true, ["Kiwi"] = true,
+        ["Mole"] = true, ["Monkey"] = true, ["Night Owl"] = true,
+        ["Orange Tabby"] = true, ["Owl"] = true, ["Panda"] = true,
+        ["Pig"] = true, ["Polar Bear"] = true, ["Praying Mantis"] = true,
+        ["Raccoon"] = true, ["Red Fox"] = true, ["Red Giant Ant"] = true,
+        ["Rooster"] = true, ["Sea Otter"] = true, ["Silver Monkey"] = true,
+        ["Snail"] = true, ["Spotted Deer"] = true, ["Squirrel"] = true,
+        ["Turtle"] = true
+    }
+
+    local validEggs = {
+        ["Common Egg"] = true, ["Uncommon Egg"] = true, ["Rare Egg"] = true,
+        ["Legendary Egg"] = true, ["Mythical Egg"] = true,
+        ["Bug Egg"] = true, ["Night Egg"] = true
+    }
+
+    local highlightColors = {
+        ["Red Fox"] = "🔴",
+        ["Raccoon"] = "🔵",
+        ["Dragonfly"] = "🟡"
+    }
+
+    local function parseItemName(name)
+        local base, qty = name:match("^(.-)%s*[xX](%d+)$")
+        return base and base or name, qty and tonumber(qty) or 1
+    end
+
+    local function collectCounts(filterSet)
+        local counts = {}
+        for _, item in ipairs(backpack:GetChildren()) do
+            local raw = item.Name
+            local base, qty = parseItemName(raw:match("^(.-)%s*%[") or raw)
+            if filterSet[base] then
+                counts[base] = (counts[base] or 0) + qty
+            end
+        end
+        return counts
+    end
+
+    local function formatHorizontal(counts, useColors)
+        local result = {}
+        for name, qty in pairs(counts) do
+            local icon = (useColors and highlightColors[name]) or ""
+            table.insert(result, string.format("%s%s x%d", icon, name, qty))
+        end
+        table.sort(result)
+        return #result > 0 and table.concat(result, " | ") or "None found."
+    end
+
+    local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
+    if not requestFunc then warn("❌ No HTTP support.") return end
+
+    while true do
+        local pets = collectCounts(validPets)
+        local eggs = collectCounts(validEggs)
+
+        local embed = {
+            ["embeds"] = { {
+                ["title"] = "📦 Pet Inventory Report",
+                ["fields"] = {
+                    { ["name"] = "👤 Username", ["value"] = "**" .. player.Name .. "**", ["inline"] = true },
+                    { ["name"] = "🐾 Pet Summary", ["value"] = formatHorizontal(pets, true), ["inline"] = false },
+                    { ["name"] = "🥚 Egg Summary", ["value"] = formatHorizontal(eggs), ["inline"] = false }
+                },
+                ["color"] = 5793266,
+                ["footer"] = { ["text"] = "Updated on " .. os.date("%m/%d at %I:%M %p") }
+            }}
+        }
+
+        pcall(function()
+            requestFunc({
+                Url = WEBHOOK_URL,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode(embed)
+            })
+        end)
+
+        task.wait(300)
+    end
+end)
+
+-- MODULE: AUTO PLACE EGGS (Prioritized Placement)
+task.spawn(function()
+    local EGG_EVENT = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("PetEggService")
+    local ALLOWED_EGGS = {["Night Egg"] = true, ["Bug Egg"] = true, ["Mythical Egg"] = true}
+    local EGG_PRIORITY = {"Night Egg", "Bug Egg", "Mythical Egg"}
+    local MAX_PLANTED = 3
+    local CHECK_INTERVAL = 5
+
+    local function waitForOwnedFarm(timeout)
+        local start = tick()
+        while tick() - start < (timeout or 30) do
+            for _, farm in ipairs(Workspace.Farm:GetChildren()) do
+                local ownerVal = farm:FindFirstChild("Important")
+                    and farm.Important:FindFirstChild("Data")
+                    and farm.Important.Data:FindFirstChild("Owner")
+                if ownerVal and typeof(ownerVal.Value) == "string" and ownerVal.Value == player.Name then
+                    return farm
+                end
+            end
+            task.wait(1)
+        end
+        return nil
+    end
+
+    local function unequipAllTools()
+        if player.Character then
+            for _, tool in ipairs(player.Character:GetChildren()) do
+                if tool:IsA("Tool") then
+                    tool.Parent = player.Backpack
+                end
+            end
+        end
+    end
+
+    local function tryEquipEgg(name)
+        for _, tool in ipairs(player.Backpack:GetChildren()) do
+            if tool.Name:find(name) then
+                unequipAllTools()
+                task.wait(0.1)
+                tool.Parent = player.Character
+                return true
+            end
+        end
+        return false
+    end
+
+    local function getPlacedEggs(folder)
+        local eggs = {}
+        for _, obj in ipairs(folder:GetChildren()) do
+            if obj.Name == "PetEgg" and obj:IsA("BasePart") then
+                table.insert(eggs, obj)
+            end
+        end
+        return eggs
+    end
+
+    local function isPositionClear(pos, existing)
+        for _, egg in ipairs(existing) do
+            if (egg.Position - pos).Magnitude < 3.9 then return false end
+        end
+        return true
+    end
+
+    local function getRandomPoint(part)
+        local size = part.Size
+        local origin = part.Position
+        return Vector3.new(origin.X + (math.random() - 0.5) * (size.X - 1), origin.Y + 0.1, origin.Z + (math.random() - 0.5) * (size.Z - 1))
+    end
+
+    local function getOpenSpot(plantFolder, existingEggs)
+        local candidates = {}
+        for _, obj in ipairs(plantFolder:GetChildren()) do
+            if obj:IsA("BasePart") and obj.Name == "Can_Plant" then
+                table.insert(candidates, obj)
+            end
+        end
+        for i = #candidates, 2, -1 do
+            local j = math.random(i)
+            candidates[i], candidates[j] = candidates[j], candidates[i]
+        end
+        for _, obj in ipairs(candidates) do
+            local pos = getRandomPoint(obj)
+            if isPositionClear(pos, existingEggs) then return pos end
+        end
+        return nil
+    end
+
+    local function autoPlaceEggs(farm)
+        local plantFolder = farm.Important:FindFirstChild("Plant_Locations")
+        local objectsFolder = farm.Important:FindFirstChild("Objects_Physical")
+        if not plantFolder or not objectsFolder then return end
+
+        local currentEggs = getPlacedEggs(objectsFolder)
+        local plantedCount = #currentEggs
+
+        while plantedCount < MAX_PLANTED do
+            local success = false
+            for _, eggName in ipairs(EGG_PRIORITY) do
+                if tryEquipEgg(eggName) then
+                    currentEggs = getPlacedEggs(objectsFolder)
+                    local pos = getOpenSpot(plantFolder, currentEggs)
+                    if pos then
+                        EGG_EVENT:FireServer("CreateEgg", pos)
+                        plantedCount += 1
+                        task.wait(0.2)
+                        success = true
+                        break
+                    end
+                end
+            end
+            if not success then break end
+        end
+    end
+
+    local farm = waitForOwnedFarm(30)
+    if not farm then return end
+
+    while true do
+        pcall(function() autoPlaceEggs(farm) end)
+        task.wait(CHECK_INTERVAL)
+    end
+end)
+
+-- MODULE: AUTO HATCH ALL EGGS (Always Hatch)
+task.spawn(function()
+    local HatchRemote = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("PetEggService")
+
+    local function hatchEgg(model)
+        pcall(function()
+            HatchRemote:FireServer("HatchPet", model)
+        end)
+    end
+
+    -- Loop every 0.5s to hatch visible eggs
+    task.spawn(function()
+        while true do
+            for _, mdl in ipairs(Workspace:GetDescendants()) do
+                if mdl:IsA("Model") and mdl.Name == "PetEgg" then
+                    hatchEgg(mdl)
+                end
+            end
+            task.wait(0.5)
+        end
+    end)
+
+    -- Hatch new eggs as they appear
+    Workspace.DescendantAdded:Connect(function(obj)
+        if obj:IsA("Model") and obj.Name == "PetEgg" then
+            hatchEgg(obj)
+        end
+    end)
+end)
+
+    -- also catch brand-new eggs immediately
+Workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("Model") and obj.Name == "PetEgg" then
+        hatchEgg(obj)
+    end
+end)
+
+-- MODULE: BUY EVENT SEEDS
+task.spawn(function()
+    local BuyRemote = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("BuyEventShopStock")
+    local itemsToBuy = {"Night Seed Pack", "Night Egg"}
+    while true do
+        for _, item in ipairs(itemsToBuy) do
+            BuyRemote:FireServer(item)
+            task.wait(0.5)
+        end
+    end
+end)
+
+-- MODULE: BUY PET EGGS
+task.spawn(function()
+    local BuyPetEgg = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("BuyPetEgg")
+    while true do
+        for eggId = 1, 5 do
+            BuyPetEgg:FireServer(eggId)
+            task.wait(0.5)
+        end
+    end
+end)

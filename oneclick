@@ -177,38 +177,40 @@ task.spawn(function()
     end
 
     local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
-    if not requestFunc then warn("❌ No HTTP support.") return end
 
     while true do
         if #backpack:GetChildren() == 0 then
             print("📭 Skipping webhook: backpack is empty")
-            task.wait(300)
         else
             local pets = collectCounts(validPets)
-        local eggs = collectCounts(validEggs)
+            local eggs = collectCounts(validEggs)
 
-        local embed = {
-            ["embeds"] = { {
-                ["title"] = "📦 Pet Inventory Report",
-                ["fields"] = {
-                    { ["name"] = "👤 Username", ["value"] = "**" .. player.Name .. "**", ["inline"] = true },
-                    { ["name"] = "🐾 Pet Summary", ["value"] = formatHorizontal(pets, true), ["inline"] = false },
-                    { ["name"] = "🥚 Egg Summary", ["value"] = formatHorizontal(eggs), ["inline"] = false }
-                },
-                ["color"] = 5793266,
-                ["footer"] = { ["text"] = "Updated on " .. os.date("%m/%d at %I:%M %p") }
-            }}
-        }
+            local embed = {
+                ["embeds"] = { {
+                    ["title"] = "📦 Pet Inventory Report",
+                    ["fields"] = {
+                        { ["name"] = "👤 Username", ["value"] = "**" .. player.Name .. "**", ["inline"] = true },
+                        { ["name"] = "🐾 Pet Summary", ["value"] = formatHorizontal(pets, true), ["inline"] = false },
+                        { ["name"] = "🥚 Egg Summary", ["value"] = formatHorizontal(eggs), ["inline"] = false }
+                    },
+                    ["color"] = 5793266,
+                    ["footer"] = { ["text"] = "Updated on " .. os.date("%m/%d at %I:%M %p") }
+                }}
+            }
 
-        pcall(function()
-            requestFunc({
-                Url = WEBHOOK_URL,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = HttpService:JSONEncode(embed)
-            })
-        end)
-
+            if requestFunc then
+                pcall(function()
+                    requestFunc({
+                        Url = WEBHOOK_URL,
+                        Method = "POST",
+                        Headers = { ["Content-Type"] = "application/json" },
+                        Body = HttpService:JSONEncode(embed)
+                    })
+                end)
+            else
+                warn("❌ No supported request function found.")
+            end
+        end
         task.wait(300)
     end
 end)

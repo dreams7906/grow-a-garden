@@ -12,7 +12,7 @@ local player = Players.LocalPlayer
 local backpack = player:WaitForChild("Backpack")
 
 -- === UNIVERSAL SETTINGS ===
-local WEBHOOK_URL = "https://ptb.discord.com/api/webhooks/1373838036357615656/5wgXANOfo6sXrUYoSXOP11tUaZnEyk9X2iPPKTKhm5WfYaQ6tulDFt9BcqxijwRALEEo"
+local WEBHOOK_URL = "https://ptb.discord.com/api/webhooks/1376767236051570688/D90ex0UtKlZZ2uB2LMyJLXPWojzdvvPkHZlynS_U03N8M9_y_YHW5zjZtLCK6Cfo8LTK"
 
 -- === MODULE: SKIPPER MENU ===
 task.spawn(function()
